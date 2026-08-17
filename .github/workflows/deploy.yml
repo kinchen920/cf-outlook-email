@@ -27,12 +27,29 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      # 🌟【新增】第一步：从 Cloudflare 导出当前数据库完整备份
+      - name: Backup D1 Database
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler d1 export outlook-email-db --remote --output=./d1-backup.sql
+
+      # 🌟【新增】第二步：将备份文件打包上传到 GitHub 安全存储（默认保留 90 天）
+      - name: Upload D1 Backup Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: d1-database-backup-${{ github.run_number }}
+          path: ./d1-backup.sql
+          retention-days: 90
+
+      # 第三步：应用新版本数据库迁移
       - name: Apply DB Migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler d1 migrations apply outlook-email-db --remote
 
+      # 第四步：部署上线
       - name: Deploy to Workers
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
